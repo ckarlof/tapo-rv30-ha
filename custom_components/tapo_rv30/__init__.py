@@ -6,6 +6,8 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import DEFAULT_PORT, DOMAIN
 from .coordinator import TapoCoordinator
@@ -30,9 +32,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_clean_rooms(call: ServiceCall) -> None:
         """Service: tapo_rv30.clean_rooms."""
-        entity_ids: list[str] = call.data.get("entity_id", [])
+        entity_ids = call.data.get("entity_id", [])
+        device_ids = call.data.get("device_id", [])
         rooms_raw = call.data.get("rooms", [])
         map_name: str | None = call.data.get("map")
+
+        if isinstance(entity_ids, str):
+            entity_ids = [entity_ids]
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
 
         # Normalise rooms to a list — HA templates can produce a string when only
         # one room is selected, and iterating a string gives individual characters.
@@ -47,13 +55,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Find the coordinator for the target entity
         coord: TapoCoordinator | None = None
+        domain_data = hass.data.get(DOMAIN, {})
+
+        ent_reg = er.async_get(hass)
         for eid in entity_ids:
-            state = hass.states.get(eid)
-            if state and state.attributes.get("integration") == DOMAIN:
-                coord = coordinator
+            ent = ent_reg.async_get(eid)
+            if ent and ent.config_entry_id in domain_data:
+                coord = domain_data[ent.config_entry_id]
                 break
+
         if coord is None:
-            coord = coordinator   # fallback to first/only
+            dev_reg = dr.async_get(hass)
+            for did in device_ids:
+                dev = dev_reg.async_get(did)
+                if dev:
+                    for entry_id in dev.config_entries:
+                        if entry_id in domain_data:
+                            coord = domain_data[entry_id]
+                            break
+                if coord:
+                    break
+
+        if coord is None:
+            if domain_data:
+                coord = next(iter(domain_data.values()))
+            else:
+                _LOGGER.error("clean_rooms: No Tapo RV30 devices found")
+                return
 
         try:
             # Fetch rooms live from the device so we always use the correct map_id
@@ -75,5 +103,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        hass.services.async_remove(DOMAIN, "clean_rooms")
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, "clean_rooms")
     return ok
