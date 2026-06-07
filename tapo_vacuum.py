@@ -477,11 +477,11 @@ class TapoVacuum:
         rooms, data = self.get_rooms(map_id)
         matched = []
         for pat in name_patterns:
-            decoded = [_b64name(r["name"]) for r in rooms]
+            decoded = [_b64name(r.get("name", "")) for r in rooms]
             exact = [r for r, n in zip(rooms, decoded) if n.lower() == pat.lower()]
             hits = exact or [r for r, n in zip(rooms, decoded) if pat.lower() in n.lower()]
             if not hits:
-                available = [_b64name(r["name"]) for r in rooms]
+                available = [_b64name(r.get("name", "")) for r in rooms]
                 raise ValueError(f"No room matching '{pat}'. Available: {available}")
             matched.extend(hits)
         # deduplicate preserving order
@@ -615,7 +615,7 @@ def main():
         print(f"{'ID':>4}  {'Name':<20}  {'Fan':<10}  {'Water':<8}  Passes")
         print("-" * 55)
         for r in rooms:
-            name    = _b64name(r["name"])
+            name    = _b64name(r.get("name", ""))
             fan     = FAN_NAMES.get(r.get("suction"), str(r.get("suction")))
             water   = WATER_NAMES.get(r.get("cistern"), str(r.get("cistern")))
             passes  = r.get("clean_number", "?")
@@ -644,7 +644,7 @@ def main():
         for i, r in enumerate(sorted_rooms):
             col  = ROOM_COLORS[i % len(ROOM_COLORS)]
             ch   = chr(ord("A") + i)
-            name = _b64name(r["name"])
+            name = _b64name(r.get("name", ""))
             fan  = FAN_NAMES.get(r.get("suction"), str(r.get("suction")))
             water  = WATER_NAMES.get(r.get("cistern"), str(r.get("cistern")))
             passes = r.get("clean_number", "?")
@@ -658,7 +658,7 @@ def main():
             v.start(); print("Starting whole-house clean.")
         else:
             rooms_matched, map_id = v._resolve_rooms(args[1:])
-            names = ", ".join(_b64name(r["name"]) for r in rooms_matched)
+            names = ", ".join(_b64name(r.get("name", "")) for r in rooms_matched)
             v.clean_rooms(args[1:])
             print(f"Cleaning: {names}")
 
