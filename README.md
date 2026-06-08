@@ -47,6 +47,39 @@ Requires HACS frontend cards:
 - [Mushroom](https://github.com/piitaya/lovelace-mushroom)
 - [Xiaomi Vacuum Map Card](https://github.com/PiotrMachowski/lovelace-xiaomi-vacuum-map-card)
 
+### Configuring Map Calibration
+
+The custom map camera renders images at exactly **4x scale** of the vacuum's internal grid. Because every home is different, you must calculate the calibration points for the Xiaomi Vacuum Map Card yourself based on your specific map dimensions.
+
+1. Run the standalone CLI to find your map dimensions:
+   ```bash
+   python3 tapo_vacuum.py map
+   ```
+2. The output will look something like this: `Map: Downstairs (174×176 px, 50mm/px)`. Here, your width (`W`) is 174 and height (`H`) is 176.
+3. Multiply these numbers by **4** to find your image dimensions (e.g., Image Width = 174 × 4 = **696**, Image Height = 176 × 4 = **704**).
+4. Enter these into your dashboard YAML using the following formula:
+   ```yaml
+        calibration_source:
+          calibration_points:
+            - vacuum: {x: 0, y: 0}
+              map:    {x: 0, y: [Image Height]}
+            - vacuum: {x: [W], y: 0}
+              map:    {x: [Image Width], y: [Image Height]}
+            - vacuum: {x: 0, y: [H]}
+              map:    {x: 0, y: 0}
+   ```
+   *Example using W=174 and H=176:*
+   ```yaml
+        calibration_source:
+          calibration_points:
+            - vacuum: {x: 0,   y: 0}
+              map:    {x: 0,   y: 704}
+            - vacuum: {x: 174, y: 0}
+              map:    {x: 696, y: 704}
+            - vacuum: {x: 0,   y: 176}
+              map:    {x: 0,   y: 0}
+   ```
+
 ## Standalone CLI
 
 [`tapo_vacuum.py`](tapo_vacuum.py) is a standalone command-line tool (no HA required):
